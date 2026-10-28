@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>軽作業レベルアップ</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<section id="authView" class="auth-wrap">
+  <div class="card auth-card">
+    <h1>🌟 軽作業レベルアップ</h1>
+    <h2 id="authTitle">ログイン</h2>
+    <form id="authForm">
+      <label for="authEmail">メールアドレス
+        <input id="authEmail" type="email" autocomplete="email" required>
+      </label>
+      <label for="authPassword">パスワード（6文字以上）
+        <input id="authPassword" type="password" autocomplete="current-password" minlength="6" required>
+      </label>
+      <button id="authSubmit" class="main-btn" type="submit">ログイン</button>
+    </form>
+    <p id="authMessage" class="auth-message" role="alert" aria-live="polite"></p>
+    <div class="auth-links">
+      <button id="authToggle" type="button" class="link-btn">はじめての方は新規登録</button>
+      <button id="resetPassBtn" type="button" class="link-btn">パスワードを忘れた方</button>
+    </div>
+  </div>
+</section>
+
+<div id="appView" class="hidden">
+<header class="header">
+  <h1>🌟 軽作業レベルアップ</h1>
+  <div class="header-right">
+    <span id="userEmail" class="user-email"></span>
+    <small id="saveStatus" class="save-status" aria-live="polite"></small>
+    <button id="logoutBtn" class="sub-btn">ログアウト</button>
+    <button id="resetBtn" class="sub-btn">データ初期化</button>
+    <button id="adminToggle" class="sub-btn hidden" type="button">管理者メニュー</button>
+  </div>
+</header>
+
+<div id="levelupModal" class="modal hidden">
+  <div class="modal-box">
+    <div class="levelup-icon">🎉</div>
+    <h2>LEVEL UP!</h2>
+    <p id="levelupText"></p>
+    <button id="closeLevelup" class="main-btn">成長を確認する</button>
+  </div>
+</div>
+
+<main class="container">
+  <section class="hero card">
+    <p class="label">総合レベル</p>
+    <div class="level-row">
+      <span id="totalLevel">Lv.1</span>
+      <strong id="totalExp">0 EXP</strong>
+    </div>
+    <div class="bar"><span id="totalBar"></span></div>
+    <p id="totalNext">次のレベルまで 100 EXP</p>
+  </section>
+
+  <section class="card">
+    <div class="section-title">
+      <h2>🛠️ 使うソフトを選択</h2>
+      <button id="addSoftwareBtn" class="small-btn">＋ソフト追加</button>
+    </div>
+    <div id="softwareList" class="software-grid"></div>
+  </section>
+
+  <section class="card">
+    <h2>📝 作業を記録</h2>
+    <form id="workForm">
+      <label>分野
+        <select id="category" required>
+          <option value="軽作業">📦 軽作業</option>
+          <option value="イラスト">🎨 イラスト</option>
+          <option value="デザイン">🖼️ デザイン</option>
+          <option value="PC作業">💻 PC作業</option>
+          <option value="その他">✨ その他</option>
+        </select>
+      </label>
+      <label>使用ソフト
+        <select id="software" required></select>
+      </label>
+      <label>作業内容
+        <select id="workPreset">
+          <option value="">-- 作業内容を選択 --</option>
+        </select>
+      </label>
+      <label>または自由入力
+        <input id="workName" type="text" placeholder="例：オリジナル作品を制作">
+      </label>
+      <label>目標に紐づける
+        <select id="workGoal"><option value="">目標なし</option></select>
+      </label>
+      <div class="two">
+        <label>作業時間（分）
+          <input id="minutes" type="number" min="0" value="30">
+        </label>
+      <div class="two">
+        <label>完了数量
+          <input id="quantity" type="number" min="1" value="1" required>
+        </label>
+        <label>工程単価（円）
+          <input id="unitPrice" type="number" min="0" step="1" value="0" readonly required>
+        </label>
+      </div>
+      <p class="wage-note">工賃 ＝ 工程単価 × 完了数量</p>
+        <label>難易度
+          <select id="difficulty">
+            <option value="1">★ やさしい</option>
+            <option value="2" selected>★★ 普通</option>
+            <option value="3">★★★ 難しい</option>
+            <option value="4">★★★★ とても難しい</option>
+          </select>
+        </label>
+      </div>
+      <button class="main-btn" type="submit">✨ 作業を記録してEXP獲得</button>
+    </form>
+  </section>
+
+  <section id="adminPanel" class="card hidden">
+    <h2>👑 管理者メニュー</h2>
+    <p>利用者の記録・工賃を確認し、管理者を追加または解除できます。</p>
+    <div id="adminUsers"></div>
+    <h3>工程単価の設定</h3>
+    <form id="rateForm" class="two">
+      <label>分野<input id="rateCategory" required placeholder="例：軽作業"></label>
+      <label>工程名<input id="rateName" required placeholder="例：袋詰め"></label>
+      <label>単価（円）<input id="rateYen" type="number" min="0" step="1" required></label>
+      <button class="main-btn" type="submit">単価を保存</button>
+    </form>
+    <div id="rateList"></div>
+  </section>
+
+  <section class="card">
+    <h2>🏆 実績・称号</h2>
+    <div id="achievementList" class="achievement-grid"></div>
+  </section>
+
+  <section class="card">
+    <h2>📈 成長グラフ</h2>
+    <canvas id="growthChart" height="180"></canvas>
+  </section>
+
+  <section class="card">
+    <h2>📈 スキル成長</h2>
+    <div id="skillList"></div>
+  </section>
+
+  <section class="card">
+    <h2>🎯 目標設定</h2>
+    <form id="goalForm">
+      <div class="two">
+        <label>期間
+          <select id="goalPeriod">
+            <option value="daily">毎日</option>
+            <option value="weekly">週間</option>
+            <option value="monthly">月間</option>
+          </select>
+        </label>
+        <label>目標回数
+          <input id="goalTarget" type="number" min="1" value="3">
+        </label>
+      </div>
+      <label>目標内容
+        <input id="goalName" type="text" placeholder="例：イラストを3回練習する" required>
+      </label>
+      <button class="main-btn" type="submit">🎯 目標を設定</button>
+    </form>
+    <div id="goalList"></div>
+  </section>
+
+  <section class="card">
+    <h2>🚀 レベルアップ履歴</h2>
+    <div id="levelHistory"></div>
+  </section>
+
+  <section class="card">
+    <h2>📊 成長記録</h2>
+    <div class="stats stats-wage">
+      <div><span>記録件数</span><strong id="workCount">0</strong></div>
+      <div><span>合計作業時間</span><strong id="totalMinutes">0分</strong></div>
+      <div><span>獲得EXP</span><strong id="earnedExp">0</strong></div>
+      <div><span>工賃合計</span><strong id="totalWage">0円</strong></div>
+    </div>
+    <div id="history"></div>
+  </section>
+</main>
+</div>
+
+<script type="module" src="script.js"></script>
+</body>
+</html>

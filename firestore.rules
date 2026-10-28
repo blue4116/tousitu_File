@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() {
+      return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // 利用者は自分の記録だけを変更でき、管理者は全員分を閲覧できます。
+    match /users/{userId} {
+      allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
+      allow create, update, delete: if signedIn() && request.auth.uid == userId;
+    }
+
+    // 管理者一覧は本人の権限表示と管理者画面からの閲覧のみ。変更はCloud Functions限定。
+    match /admins/{userId} {
+      allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
+      allow write: if false;
+    }
+
+    // 工程の単価はログイン利用者が読み取り、管理者だけが変更できます。
+    match /settings/{settingId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+  }
+}
