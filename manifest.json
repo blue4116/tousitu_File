@@ -1,0 +1,10 @@
+{
+  "name": "糖尿病改善サポート",
+  "short_name": "健康サポート",
+  "description": "食事・血糖値・体重・体組成の記録を支援します。",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f5f8f6",
+  "theme_color": "#176b5b",
+  "icons": []
+}
