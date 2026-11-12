@@ -12,6 +12,25 @@ let currentUser = null;
 let meals = [], glucoseRecords = [], bodyRecords = [];
 let analysisResult = null;
 let reminderTimer = null;
+const CARB_GOAL_KEY = "diabetes-support-carb-goal-v1";
+/* 調味料の早見データ。100gあたりの炭水化物（≒糖質：調味料は食物繊維がほぼ0）とカロリー、
+   小さじ1・大さじ1の重さ（g）。日本食品標準成分表（八訂）増補2023年をもとにした目安で、
+   商品や種類で変わります。正確な値は商品の栄養成分表示を確認してください。 */
+const SEASONINGS = [
+  { id:"sugar",     name:"砂糖（上白糖）",               carbs:99.3, kcal:391, tsp:3, tbsp:9 },
+  { id:"honey",     name:"はちみつ",                     carbs:81.9, kcal:329, tsp:7, tbsp:21 },
+  { id:"mirin",     name:"みりん（本みりん）",           carbs:43.2, kcal:241, tsp:6, tbsp:18 },
+  { id:"sake",      name:"料理酒（清酒）",               carbs:4.9,  kcal:103, tsp:5, tbsp:15 },
+  { id:"shoyu",     name:"しょうゆ（こいくち）",         carbs:10.1, kcal:71,  tsp:6, tbsp:18 },
+  { id:"miso",      name:"みそ（米みそ・淡色辛みそ）",   carbs:21.9, kcal:182, tsp:6, tbsp:18 },
+  { id:"ketchup",   name:"トマトケチャップ",             carbs:27.6, kcal:106, tsp:6, tbsp:18 },
+  { id:"worcester", name:"ウスターソース",               carbs:27.1, kcal:117, tsp:6, tbsp:18 },
+  { id:"mayo",      name:"マヨネーズ（全卵型）",         carbs:3.6,  kcal:668, tsp:4, tbsp:12 },
+  { id:"salad-oil", name:"サラダ油",                     carbs:0,    kcal:921, tsp:4, tbsp:12 },
+  { id:"sesame-oil",name:"ごま油",                       carbs:0,    kcal:921, tsp:4, tbsp:12 },
+  { id:"salt",      name:"食塩",                         carbs:0,    kcal:0,   tsp:6, tbsp:18 }
+];
+let pendingSeasonings = [];
 const REMINDER_KEY = "diabetes-support-reminders-v1";
 const localDemoKey = "diabetes-support-demo-records-v1";
 
@@ -153,6 +172,98 @@ function renderAnalysis(d) {
     <p class="muted">調味料メモの追加分がAI結果に含まれているか、分析結果の注意書きを確認してください。二重計上を避けてください。</p>`;
 }
 function num(v) { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : 0; }
+function fmt1(v) { return String(Math.round(num(v) * 10) / 10); }
+
+/* ---- 糖質目標（このブラウザーにだけ保存） ---- */
+function readCarbGoal() {
+  const v = Number(localStorage.getItem(CARB_GOAL_KEY));
+  return Number.isFinite(v) && v > 0 ? v : null;
+}
+
+/* ---- 調味料換算 ---- */
+function seasoningCalc() {
+  const item = SEASONINGS.find(s => s.id === $("seasoningSelect").value) || SEASONINGS[0];
+  const unit = $("seasoningUnit").value;
+  const amount = num($("seasoningAmount").value);
+  const unitLabel = unit === "tbsp" ? "大さじ" : unit === "tsp" ? "小さじ" : "g";
+  const grams = unit === "g" ? amount : amount * (unit === "tbsp" ? item.tbsp : item.tsp);
+  return {
+    item, unit, amount, unitLabel, grams,
+    carbs: grams * item.carbs / 100,
+    calories: grams * item.kcal / 100
+  };
+}
+function renderSeasoningResult() {
+  const c = seasoningCalc();
+  $("seasoningResult").textContent =
+    `${c.item.name} ${c.unitLabel}${c.amount} ＝ 約${fmt1(c.grams)}g ／ 糖質 約${fmt1(c.carbs)}g ／ ${Math.round(c.calories)} kcal（目安）`;
+}
+function renderSeasoningTable() {
+  const body = $("seasoningTableBody");
+  body.innerHTML = "";
+  for (const s of SEASONINGS) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${escapeHtml(s.name)}</td><td>${s.tbsp}g</td><td>${s.tsp}g</td><td>${fmt1(s.carbs)}g</td><td>${s.kcal} kcal</td>`;
+    body.append(tr);
+  }
+}
+function renderSeasoningAddedBox() {
+  const box = $("seasoningAddedBox");
+  if (!pendingSeasonings.length) { box.classList.add("hidden"); box.innerHTML = ""; return; }
+  const totalCarbs = pendingSeasonings.reduce((s, p) => s + p.carbs, 0);
+  const totalCalories = pendingSeasonings.reduce((s, p) => s + p.calories, 0);
+  box.classList.remove("hidden");
+  box.innerHTML = "";
+  const h = document.createElement("h3"); h.textContent = "調味料換算から追加した分";
+  const ul = document.createElement("ul");
+  for (const p of pendingSeasonings) {
+    const li = document.createElement("li"); li.textContent = p.line; ul.append(li);
+  }
+  const total = document.createElement("p");
+  total.innerHTML = `<strong>合計：糖質 約${fmt1(totalCarbs)}g ／ ${Math.round(totalCalories)} kcal</strong><br>写真のAI推定を使っていない場合は、保存時にこの分が食事の糖質・カロリーに加算されます。AI推定を使った場合は二重計上を避けるため加算されません。`;
+  const clear = document.createElement("button");
+  clear.type = "button"; clear.className = "secondary"; clear.textContent = "調味料の追加を全部消す";
+  clear.addEventListener("click", () => { pendingSeasonings = []; renderSeasoningAddedBox(); });
+  box.append(h, ul, total, clear);
+}
+function initCarbsTab() {
+  const select = $("seasoningSelect");
+  for (const s of SEASONINGS) {
+    const opt = document.createElement("option");
+    opt.value = s.id; opt.textContent = s.name; select.append(opt);
+  }
+  ["seasoningSelect","seasoningUnit","seasoningAmount"].forEach(id =>
+    $(id).addEventListener("input", renderSeasoningResult));
+  renderSeasoningTable();
+  renderSeasoningResult();
+  const goal = readCarbGoal();
+  if (goal) $("carbGoalInput").value = goal;
+  $("seasoningAddBtn").addEventListener("click", () => {
+    const c = seasoningCalc();
+    if (c.amount <= 0) { setMessage("seasoningMessage", "量を入力してください。", true); return; }
+    const line = `${c.item.name} ${c.unitLabel}${c.amount}（約${fmt1(c.grams)}g・糖質約${fmt1(c.carbs)}g・${Math.round(c.calories)}kcal）`;
+    pendingSeasonings.push({ ...c, line });
+    const note = $("seasoningNote");
+    note.value = note.value.trim() ? `${note.value.trim()}\n${line}` : line;
+    renderSeasoningAddedBox();
+    setMessage("seasoningMessage", "食事記録に追加しました。食事記録タブで内容を確認して保存してください。");
+    setActiveTab("food");
+  });
+  $("carbGoalForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const v = Number($("carbGoalInput").value);
+    if (!Number.isFinite(v) || v <= 0) { setMessage("carbGoalMessage", "1以上の目標（g）を入力してください。", true); return; }
+    localStorage.setItem(CARB_GOAL_KEY, String(v));
+    setMessage("carbGoalMessage", `1日の糖質目標を ${v}g に設定しました。`);
+    renderAll();
+  });
+  $("carbGoalClear").addEventListener("click", () => {
+    localStorage.removeItem(CARB_GOAL_KEY);
+    $("carbGoalInput").value = "";
+    setMessage("carbGoalMessage", "目標を消しました。");
+    renderAll();
+  });
+}
 function escapeHtml(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 
 $("mealForm").addEventListener("submit", async e => {
@@ -166,8 +277,11 @@ $("mealForm").addEventListener("submit", async e => {
     if (error) { setMessage("mealMessage","写真を保存できませんでした。Storageの設定を確認してください: "+error.message,true); return; }
   }
   const result = analysisResult || {};
-  const calories = $("editCalories") ? num($("editCalories").value) : num(result.calories_kcal);
-  const carbs = $("editCarbs") ? num($("editCarbs").value) : num(result.carbs_g);
+  // 調味料換算の分は、AI推定を使っていないときだけ加算する（二重計上を避ける）。
+  const seasoningCarbs = analysisResult ? 0 : pendingSeasonings.reduce((s, p) => s + p.carbs, 0);
+  const seasoningCalories = analysisResult ? 0 : pendingSeasonings.reduce((s, p) => s + p.calories, 0);
+  const calories = ($("editCalories") ? num($("editCalories").value) : num(result.calories_kcal)) + seasoningCalories;
+  const carbs = ($("editCarbs") ? num($("editCarbs").value) : num(result.carbs_g)) + seasoningCarbs;
   const protein = $("editProtein") ? num($("editProtein").value) : num(result.protein_g);
   const fat = $("editFat") ? num($("editFat").value) : num(result.fat_g);
   const payload = {
@@ -184,6 +298,7 @@ $("mealForm").addEventListener("submit", async e => {
   };
   if (await insertRecord("meals",payload,"mealMessage")) {
     $("mealForm").reset(); $("mealAt").value=localDateTimeValue(); $("photoPreviewWrap").classList.add("hidden"); $("nutritionResult").classList.add("hidden"); analysisResult=null;
+    pendingSeasonings = []; renderSeasoningAddedBox();
   }
 });
 
@@ -227,6 +342,16 @@ function renderAll() {
   const todayMeals=meals.filter(m => String(m.eaten_at).slice(0,10)===today);
   $("mealCount").textContent=`${todayMeals.length}件`;
   $("calorieTotal").innerHTML=`${Math.round(todayMeals.reduce((s,m)=>s+num(m.calories_kcal),0))} <small>kcal</small>`;
+  const todayCarbs = todayMeals.reduce((s,m)=>s+num(m.carbs_g),0);
+  $("carbTotal").innerHTML=`${fmt1(todayCarbs)} <small>g</small>`;
+  const byType = t => fmt1(todayMeals.filter(m=>m.meal_type===t).reduce((s,m)=>s+num(m.carbs_g),0));
+  $("carbBreakdown").textContent=`朝 ${byType("朝食")}g ・ 昼 ${byType("昼食")}g ・ 夕 ${byType("夕食")}g ・ 間食 ${byType("間食")}g`;
+  const goal = readCarbGoal();
+  $("carbGoalText").textContent = !goal
+    ? "1日の目標は「糖質・調味料」タブで設定できます"
+    : todayCarbs <= goal
+      ? `目標 ${goal}g まで あと ${fmt1(goal - todayCarbs)}g`
+      : `目標 ${goal}g を ${fmt1(todayCarbs - goal)}g 超えています`;
   $("latestGlucose").textContent=glucoseRecords[0]?glucoseRecords[0].glucose_mg_dl:"未記録";
   $("latestWeight").textContent=bodyRecords[0]?bodyRecords[0].weight_kg:"未記録";
   const items=[
@@ -295,4 +420,5 @@ function startReminderLoop() {
   check(); reminderTimer=setInterval(check,30000);
 }
 fillReminders();
+initCarbsTab();
 if("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("./sw.js").catch(console.warn);

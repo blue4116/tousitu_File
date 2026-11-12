@@ -34,12 +34,14 @@
     <section class="summary-grid">
       <article class="summary-card"><span>今日の食事記録</span><strong id="mealCount">0件</strong><small>朝・昼・夕・間食</small></article>
       <article class="summary-card"><span>今日の推定摂取量</span><strong id="calorieTotal">0 <small>kcal</small></strong><small>推定値。医療判断には使わないでください</small></article>
+      <article class="summary-card"><span>今日の糖質合計</span><strong id="carbTotal">0 <small>g</small></strong><small id="carbBreakdown">朝 0g ・ 昼 0g ・ 夕 0g ・ 間食 0g</small><small id="carbGoalText">1日の目標は「糖質・調味料」タブで設定できます</small></article>
       <article class="summary-card"><span>最新の血糖値</span><strong id="latestGlucose">未記録</strong><small>mg/dL</small></article>
       <article class="summary-card"><span>最新の体重</span><strong id="latestWeight">未記録</strong><small>kg</small></article>
     </section>
 
     <nav class="tabs" aria-label="記録メニュー">
       <button class="tab active" data-tab="food">食事記録</button>
+      <button class="tab" data-tab="carbs">糖質・調味料</button>
       <button class="tab" data-tab="glucose">血糖値</button>
       <button class="tab" data-tab="body">体重・体組成</button>
       <button class="tab" data-tab="reminders">通知設定</button>
@@ -55,11 +57,42 @@
         <div id="photoPreviewWrap" class="full hidden"><img id="photoPreview" alt="選択した食事写真" class="photo-preview"></div>
         <label class="full">料理名・食材（わかる範囲で）<textarea id="mealDescription" rows="2" placeholder="例：ご飯、焼き鮭、味噌汁"></textarea></label>
         <label class="full">油・調味料のメモ<textarea id="seasoningNote" rows="2" placeholder="例：サラダ油 小さじ2、醤油 小さじ1"></textarea></label>
+        <div id="seasoningAddedBox" class="nutrition-result full hidden" aria-live="polite"></div>
         <div class="full callout">写真の栄養推定にはAIサービスの設定が必要です。設定後は「写真を分析」で料理・栄養の推定値を取得し、調味料メモの内容を確認してから保存できます。</div>
         <div class="button-row full"><button type="button" id="analyzeBtn" class="secondary">写真を分析</button><button type="submit">食事を保存</button></div>
         <div id="nutritionResult" class="nutrition-result full hidden" aria-live="polite"></div>
         <p id="mealMessage" class="message full" aria-live="polite"></p>
       </form>
+    </section>
+
+    <section id="tab-carbs" class="panel tab-panel hidden">
+      <div class="section-head"><div><p class="eyebrow">CARBS &amp; SEASONINGS</p><h2>糖質の合計と調味料換算</h2></div></div>
+
+      <h3>1日の糖質目標（任意）</h3>
+      <p class="muted">自分で決めた目標を入れてください。トップの「今日の糖質合計」に、目標まであと何gかを表示します。目標値はこのブラウザーにだけ保存されます。食事・糖質の目標は医療従事者と相談して決めてください。このアプリが目標を決めることはありません。</p>
+      <form id="carbGoalForm" class="form-grid">
+        <label>1日の糖質目標（g）<input id="carbGoalInput" type="number" min="1" max="2000" step="1" placeholder="例：130"></label>
+        <div class="button-row"><button type="submit">目標を保存</button><button type="button" id="carbGoalClear" class="secondary">目標を消す</button></div>
+        <p id="carbGoalMessage" class="message full" aria-live="polite"></p>
+      </form>
+
+      <h3>調味料の換算</h3>
+      <p class="muted">調味料と量を選ぶと、重さ（g）・糖質・カロリーの目安を計算します。「食事記録に追加」を押すと、食事記録タブの調味料メモに書き込まれます。写真のAI推定を使っていない場合は、保存時にその糖質・カロリーが食事の値に加算されます。AI推定を使った場合は、二重計上を避けるため加算されず、メモだけが残ります。</p>
+      <form id="seasoningForm" class="form-grid">
+        <label>調味料<select id="seasoningSelect"></select></label>
+        <label>単位<select id="seasoningUnit"><option value="tbsp">大さじ</option><option value="tsp">小さじ</option><option value="g">g（グラム）</option></select></label>
+        <label>量<input id="seasoningAmount" type="number" min="0" step="0.5" value="1" required></label>
+        <div id="seasoningResult" class="callout" aria-live="polite">調味料を選ぶと計算します。</div>
+        <div class="button-row full"><button type="button" id="seasoningAddBtn">食事記録に追加</button></div>
+        <p id="seasoningMessage" class="message full" aria-live="polite"></p>
+      </form>
+
+      <h3>調味料の早見表（100gあたり）</h3>
+      <p class="muted">値は日本食品標準成分表（八訂）増補2023年をもとにした目安です。商品や種類（みその種類など）で変わるので、正確な値は商品の栄養成分表示を確認してください。ここでいう糖質は、炭水化物から食物繊維を差し引いた目安で、調味料は食物繊維がほぼ0のため炭水化物の値をそのまま使っています。</p>
+      <div class="table-wrap"><table class="seasoning-table">
+        <thead><tr><th>調味料</th><th>大さじ1</th><th>小さじ1</th><th>糖質（100g）</th><th>カロリー（100g）</th></tr></thead>
+        <tbody id="seasoningTableBody"></tbody>
+      </table></div>
     </section>
 
     <section id="tab-glucose" class="panel tab-panel hidden">
