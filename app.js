@@ -202,3 +202,7 @@ function startReminderLoop() {
 }
 fillReminders();
 if("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("./sw.js").catch(console.warn);
+
+
+// ページ読み込み後にAuth0クライアントを初期化します。
+initAuth0();
