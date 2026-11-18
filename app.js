@@ -6,7 +6,8 @@ const auth0Config = {
   domain: "dev-sjxnzbhtja8bcx2v.us.auth0.com",
   clientId: "a4uAboQssJaeVLBuf9eOiXNlOznkAD2t",
   authorizationParams: {
-    redirect_uri: window.location.origin + window.location.pathname
+    redirect_uri: window.location.origin + window.location.pathname,
+    scope: "openid profile email"
   },
   cacheLocation: "memory"
 };
@@ -45,7 +46,10 @@ document.querySelectorAll(".tab").forEach(b => b.addEventListener("click", () =>
 
 async function initAuth0() {
   try {
-    if (!window.auth0 || !window.auth0.createAuth0Client) throw new Error("Auth0 SDKを読み込めませんでした。");
+    // Auth0公式CDNのSDKが読み込まれるまで確認します。
+    if (!window.auth0 || typeof window.auth0.createAuth0Client !== "function") {
+      throw new Error("Auth0 SDKが読み込まれていません。通信制限やCDNの読み込み状態を確認してください。");
+    }
     auth0Client = await window.auth0.createAuth0Client(auth0Config);
     const params = new URLSearchParams(window.location.search);
     if (params.has("code") && params.has("state")) {
@@ -53,8 +57,10 @@ async function initAuth0() {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
     currentUser = await auth0Client.getUser() || null;
+    auth0Ready = true;
+    $("loginBtn").disabled = false;
+    $("signupBtn").disabled = false;
     if (currentUser) {
-      auth0Ready = true;
       showApp();
       await loadRecords();
       startReminderLoop();
@@ -64,14 +70,22 @@ async function initAuth0() {
   } catch (error) {
     console.error("Auth0初期化エラー", error);
     showApp();
-    setMessage("authMessage", "ログインの準備に失敗しました。Auth0の設定と通信環境を確認してください。", true);
+    $("loginBtn").disabled = false;
+    $("signupBtn").disabled = false;
+    const detail = error && error.message ? `（${error.message}）` : "";
+    setMessage("authMessage", `Auth0の初期化に失敗しました。ページを再読み込みしてください。${detail}`, true);
   }
 }
 async function authAction(mode) {
   if (!auth0Client) { setMessage("authMessage", "ログイン機能を準備中です。少し待ってから再度お試しください。", true); return; }
   try {
     setMessage("authMessage", "Auth0の安全なログイン画面へ移動します…");
-    await auth0Client.loginWithRedirect({ authorizationParams: mode === "signup" ? { screen_hint: "signup" } : {} });
+    // DB接続を明示し、signupボタンではAuth0の登録画面を直接表示します。
+    const authorizationParams = {
+      connection: "Username-Password-Authentication",
+      ...(mode === "signup" ? { screen_hint: "signup" } : { screen_hint: "login" })
+    };
+    await auth0Client.loginWithRedirect({ authorizationParams });
   } catch (error) {
     console.error(error);
     setMessage("authMessage", "ログイン画面を開けませんでした。Auth0のAllowed Callback URLsなどを確認してください。", true);
